@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+.env
+.env.*
+.coverage
+.claude/settings.local.json

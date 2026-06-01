@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "voice-feishu context",
+  "version": "0.1.0",
+  "description": "Send Feishu page context to local voice-feishu (127.0.0.1:17890).",
+  "permissions": [],
+  "host_permissions": [
+    "https://*.feishu.cn/*",
+    "https://*.larkoffice.com/*",
+    "http://127.0.0.1:17890/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.feishu.cn/*",
+        "https://*.larkoffice.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "voice-feishu context"
+  }
+}

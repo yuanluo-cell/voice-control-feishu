@@ -1,0 +1,88 @@
+---
+description: Karpathy-inspired coding guidelines plus voice-feishu project conventions. Auto-attaches to all files in this repo.
+alwaysApply: true
+---
+
+# Karpathy Coding Guidelines (voice-feishu)
+
+Behavioral guidelines to reduce common LLM coding mistakes.
+
+> Source: forrestchang/andrej-karpathy-skills. Bias toward caution over speed.
+
+## 1. Think Before Coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+The test: Would a senior engineer say this is overcomplicated?
+
+## 3. Surgical Changes
+
+Touch only what you must. Clean up only your own mess.
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+- Only remove imports/variables/functions that YOUR changes made unused.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+Define success criteria. Loop until verified.
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan with verify steps.
+
+---
+
+## Project-Specific Rules (voice-feishu)
+
+These are layered on top of the four principles and are non-negotiable.
+
+### Credentials
+- Never commit secrets. Read from macOS Keychain via `keyring`, `service=voice-feishu`.
+- Missing credentials → fail loud with a clear instruction. No silent fallbacks.
+
+### CLI safety
+- All **`lark-cli`** invocations go through `desktop/tools/lark_cli.py`.
+- That module maintains a whitelist; out-of-whitelist commands are rejected.
+- Destructive ops (send/approve/delete/modify) follow `--dry-run` → preview → confirm.
+
+### Logging
+- Each tool call writes one JSON line to `~/.voice-feishu/logs/tools.jsonl`:
+  `{ts, tool, args, result, duration_ms, context, ok}`.
+- Never log raw audio bytes or full API tokens; mask to last 4 chars.
+
+### Phase boundaries
+- Each Phase has a written Definition of Done in `docs/AGENTS.md`.
+- Do not start a Phase before the prior Phase's DoD is met.
+- Each Phase must include at least one runnable verification.
+
+### Sub-agent boundaries
+- A sub-agent must not modify files outside its declared scope in `docs/AGENTS.md`.
+- If a sub-agent finds a needed change outside scope, it reports back; it does not silently expand scope.
+
+### Python style
+- Python 3.11+, type hints on all public functions.
+- `ruff` + `mypy --strict` must pass. Match existing style when editing.
+- Prefer `asyncio` over threads for I/O concurrency.
