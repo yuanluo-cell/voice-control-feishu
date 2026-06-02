@@ -18,6 +18,7 @@ let ws = null;
 let port = null;
 let pageContext = {};
 let responseInProgress = false;
+let currentResponseHadText = false;
 let handledFunctionCalls = new Set();
 
 // --- Credential helpers ---
@@ -167,6 +168,9 @@ async function openRealtimeSession() {
                 type: "audio/pcm",
                 rate: SAMPLE_RATE,
               },
+              transcription: {
+                model: "gpt-4o-mini-transcribe",
+              },
               turn_detection: null,
             },
             output: {
@@ -189,6 +193,31 @@ async function openRealtimeSession() {
 
     if (kind === "response.audio.delta" || kind === "response.output_audio.delta") {
       port?.postMessage({ type: "audio_delta", delta: event.delta });
+    }
+
+    if (kind === "conversation.item.input_audio_transcription.delta") {
+      port?.postMessage({ type: "user_text_delta", delta: event.delta || "" });
+    }
+
+    if (kind === "conversation.item.input_audio_transcription.completed") {
+      port?.postMessage({ type: "user_text_done", transcript: event.transcript || "" });
+    }
+
+    if (
+      kind === "response.audio_transcript.delta" ||
+      kind === "response.output_text.delta" ||
+      kind === "response.text.delta"
+    ) {
+      currentResponseHadText = true;
+      port?.postMessage({ type: "text_delta", delta: event.delta || "" });
+    }
+
+    if (
+      kind === "response.audio_transcript.done" ||
+      kind === "response.output_text.done" ||
+      kind === "response.text.done"
+    ) {
+      port?.postMessage({ type: "text_done" });
     }
 
     if (kind === "response.function_call_arguments.done") {
@@ -219,6 +248,11 @@ async function openRealtimeSession() {
         createResponse();
         return;
       }
+      if (!currentResponseHadText) {
+        const text = extractResponseText(event.response);
+        if (text) port?.postMessage({ type: "text_delta", delta: text });
+      }
+      port?.postMessage({ type: "text_done" });
       port?.postMessage({ type: "status", status: "ready" });
     }
 
@@ -246,7 +280,26 @@ async function openRealtimeSession() {
 function createResponse() {
   if (!ws || ws.readyState !== WebSocket.OPEN || responseInProgress) return;
   responseInProgress = true;
+  currentResponseHadText = false;
   ws.send(JSON.stringify({ type: "response.create" }));
+}
+
+function cancelResponse() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !responseInProgress) return;
+  ws.send(JSON.stringify({ type: "response.cancel" }));
+  responseInProgress = false;
+  currentResponseHadText = false;
+}
+
+function extractResponseText(response) {
+  const chunks = [];
+  for (const item of response?.output || []) {
+    for (const content of item.content || []) {
+      const text = content.transcript || content.text || content.output_text;
+      if (text) chunks.push(text);
+    }
+  }
+  return chunks.join("\n").trim();
 }
 
 function closeRealtimeSession() {
@@ -284,6 +337,10 @@ chrome.runtime.onConnect.addListener((p) => {
           createResponse();
           port?.postMessage({ type: "status", status: "thinking" });
         }
+        break;
+      case "cancel_response":
+        cancelResponse();
+        port?.postMessage({ type: "status", status: "ready" });
         break;
       case "update_context":
         pageContext = msg.context || {};

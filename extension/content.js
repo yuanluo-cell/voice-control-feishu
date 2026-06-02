@@ -40,25 +40,49 @@
   let workletNode = null;
   let playbackCtx = null;
   let playbackQueue = [];
+  let currentPlaybackSource = null;
   let isPlaying = false;
+  let speakerEnabled = true;
+  let currentUserMsg = null;
+  let currentUserDraft = "";
+  let currentAssistantMsg = null;
   let state = "idle"; // idle | connecting | listening | thinking | speaking
 
   // --- UI ---
   const widget = document.createElement("div");
   widget.id = "vf-widget";
   widget.innerHTML = `
-    <div id="vf-drag" title="拖动">⋮⋮</div>
-    <button id="vf-btn" title="Voice Feishu">
-      <svg id="vf-icon-mic" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-        <line x1="12" y1="19" x2="12" y2="23"/>
-      </svg>
-      <svg id="vf-icon-stop" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="display:none">
-        <rect x="6" y="6" width="12" height="12" rx="2"/>
-      </svg>
-    </button>
-    <div id="vf-status"></div>
+    <div id="vf-panel">
+      <div id="vf-head">
+        <div id="vf-drag" title="拖动">⋮⋮</div>
+        <button id="vf-btn" title="Voice Feishu">
+          <svg id="vf-icon-mic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+          </svg>
+          <svg id="vf-icon-stop" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </button>
+        <div id="vf-meta">
+          <div id="vf-state-label">准备就绪</div>
+          <div id="vf-status"></div>
+        </div>
+        <button id="vf-speaker" class="vf-icon-btn active" title="听筒开启" type="button">
+          <svg class="vf-speaker-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 5 6 9H2v6h4l5 4V5Z"/>
+            <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+          </svg>
+          <svg class="vf-speaker-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+            <path d="M11 5 6 9H2v6h4l5 4V5Z"/>
+            <path d="m19 9-4 4"/>
+            <path d="m15 9 4 4"/>
+          </svg>
+        </button>
+      </div>
+      <div id="vf-transcript" aria-live="polite"></div>
+    </div>
     <div id="vf-error-panel" style="display:none">
       <div id="vf-error-head">
         <span>Voice Feishu 报错</span>
@@ -73,8 +97,13 @@
   const btn = document.getElementById("vf-btn");
   const dragHandle = document.getElementById("vf-drag");
   const statusEl = document.getElementById("vf-status");
+  const stateLabel = document.getElementById("vf-state-label");
   const iconMic = document.getElementById("vf-icon-mic");
   const iconStop = document.getElementById("vf-icon-stop");
+  const transcriptEl = document.getElementById("vf-transcript");
+  const speakerBtn = document.getElementById("vf-speaker");
+  const speakerOnIcon = speakerBtn.querySelector(".vf-speaker-on");
+  const speakerOffIcon = speakerBtn.querySelector(".vf-speaker-off");
   const errorPanel = document.getElementById("vf-error-panel");
   const errorText = document.getElementById("vf-error-text");
   const errorCopy = document.getElementById("vf-error-copy");
@@ -91,12 +120,61 @@
       "vf-state-error"
     );
     widget.classList.add(`vf-state-${s}`);
-    const labels = { idle: "", connecting: "连接中…", listening: "聆听中", thinking: "思考中…", speaking: "回复中" };
-    statusEl.textContent = labels[s] || "";
-    iconMic.style.display = s === "listening" ? "none" : "block";
-    iconStop.style.display = s === "listening" ? "block" : "none";
+    const labels = {
+      idle: ["准备就绪", "点击话筒开始"],
+      connecting: ["连接中", "正在连接 Realtime"],
+      listening: ["聆听中", "再次点击提交语音"],
+      thinking: ["生成中", "正在读取上下文并组织回复"],
+      speaking: ["正在回复", speakerEnabled ? "再次点击话筒可截断" : "仅显示文字"],
+    };
+    stateLabel.textContent = labels[s]?.[0] || "准备就绪";
+    statusEl.textContent = labels[s]?.[1] || "";
+    iconMic.style.display = s === "idle" || s === "connecting" ? "block" : "none";
+    iconStop.style.display = s === "idle" || s === "connecting" ? "none" : "block";
   }
   setState("idle");
+
+  function appendMessage(role, text) {
+    const msg = document.createElement("div");
+    msg.className = `vf-msg ${role}`;
+    msg.textContent = text;
+    transcriptEl.appendChild(msg);
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+    return msg;
+  }
+
+  function appendAssistantDelta(delta) {
+    if (!delta) return;
+    if (!currentAssistantMsg) currentAssistantMsg = appendMessage("assistant", "");
+    currentAssistantMsg.textContent += delta;
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+
+  function beginUserTranscription() {
+    currentUserDraft = "";
+    currentUserMsg = appendMessage("user", "正在识别...");
+  }
+
+  function appendUserTranscriptionDelta(delta) {
+    if (!delta) return;
+    if (!currentUserMsg) beginUserTranscription();
+    currentUserDraft += delta;
+    currentUserMsg.textContent = currentUserDraft;
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+
+  function finishUserTranscription(transcript) {
+    if (!currentUserMsg) currentUserMsg = appendMessage("user", "");
+    const text = (transcript || currentUserDraft).trim();
+    currentUserMsg.textContent = text || "（未识别到语音）";
+    currentUserMsg = null;
+    currentUserDraft = "";
+    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+
+  function finishAssistantMessage() {
+    currentAssistantMsg = null;
+  }
 
   function clampWidgetPosition(x, y) {
     const rect = widget.getBoundingClientRect();
@@ -136,6 +214,7 @@
     errorText.value = text;
     errorPanel.style.display = "block";
     statusEl.textContent = "出错";
+    stateLabel.textContent = "出错";
     widget.classList.remove(
       "vf-state-idle",
       "vf-state-connecting",
@@ -156,6 +235,16 @@
   errorClose.addEventListener("click", () => {
     errorPanel.style.display = "none";
     setState("idle");
+  });
+
+  speakerBtn.addEventListener("click", () => {
+    speakerEnabled = !speakerEnabled;
+    speakerBtn.classList.toggle("active", speakerEnabled);
+    speakerBtn.title = speakerEnabled ? "听筒开启" : "听筒关闭";
+    speakerOnIcon.style.display = speakerEnabled ? "block" : "none";
+    speakerOffIcon.style.display = speakerEnabled ? "none" : "block";
+    if (!speakerEnabled) clearPlayback();
+    if (state === "speaking") setState("speaking");
   });
 
   let dragState = null;
@@ -209,6 +298,19 @@
         setState("speaking");
         playAudioDelta(msg.delta);
         break;
+      case "text_delta":
+        setState("speaking");
+        appendAssistantDelta(msg.delta);
+        break;
+      case "text_done":
+        finishAssistantMessage();
+        break;
+      case "user_text_delta":
+        appendUserTranscriptionDelta(msg.delta);
+        break;
+      case "user_text_done":
+        finishUserTranscription(msg.transcript);
+        break;
       case "error":
         showError(msg.msg);
         break;
@@ -246,6 +348,7 @@
 
   // --- Audio Playback ---
   function playAudioDelta(b64) {
+    if (!speakerEnabled) return;
     const raw = atob(b64);
     const int16 = new Int16Array(raw.length / 2);
     for (let i = 0; i < int16.length; i++) {
@@ -269,14 +372,36 @@
     const src = playbackCtx.createBufferSource();
     src.buffer = buf;
     src.connect(playbackCtx.destination);
-    src.onended = () => { isPlaying = false; drainPlayback(); };
+    currentPlaybackSource = src;
+    src.onended = () => {
+      if (currentPlaybackSource === src) currentPlaybackSource = null;
+      isPlaying = false;
+      drainPlayback();
+    };
     src.start();
+  }
+
+  function clearPlayback() {
+    playbackQueue = [];
+    if (currentPlaybackSource) {
+      currentPlaybackSource.onended = null;
+      try {
+        currentPlaybackSource.stop();
+      } catch (_) {
+        // Already stopped.
+      }
+      currentPlaybackSource = null;
+    }
+    isPlaying = false;
   }
 
   // --- Button handler ---
   btn.addEventListener("click", async () => {
     errorPanel.style.display = "none";
     if (state === "idle") {
+      currentUserMsg = null;
+      currentUserDraft = "";
+      currentAssistantMsg = null;
       setState("connecting");
       const p = ensurePort();
       p.postMessage({ type: "start_session", context: grabContext() });
@@ -287,11 +412,15 @@
       }
     } else if (state === "listening") {
       stopRecording();
+      beginUserTranscription();
       setState("thinking");
       port?.postMessage({ type: "commit_audio" });
     } else {
       stopRecording();
+      clearPlayback();
+      port?.postMessage({ type: "cancel_response" });
       port?.postMessage({ type: "stop_session" });
+      finishAssistantMessage();
       setState("idle");
     }
   });
