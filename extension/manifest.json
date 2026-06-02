@@ -1,28 +1,33 @@
 {
   "manifest_version": 3,
-  "name": "voice-feishu context",
-  "version": "0.1.0",
-  "description": "Send Feishu page context to local voice-feishu (127.0.0.1:17890).",
-  "permissions": [],
+  "name": "Voice Feishu",
+  "version": "0.2.0",
+  "description": "语音控制飞书：对着麦克风说话，直接操作飞书文档、消息、日程。",
+  "permissions": ["storage", "identity"],
   "host_permissions": [
     "https://*.feishu.cn/*",
     "https://*.larkoffice.com/*",
-    "http://127.0.0.1:17890/*"
+    "https://open.feishu.cn/*",
+    "wss://api.openai.com/*"
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
+  "background": { "service_worker": "background.js", "type": "module" },
   "content_scripts": [
     {
-      "matches": [
-        "https://*.feishu.cn/*",
-        "https://*.larkoffice.com/*"
-      ],
+      "matches": ["https://*.feishu.cn/*", "https://*.larkoffice.com/*"],
       "js": ["content.js"],
+      "css": ["styles.css"],
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["audio-worklet.js"],
+      "matches": ["https://*.feishu.cn/*", "https://*.larkoffice.com/*"]
+    }
+  ],
+  "options_page": "options.html",
   "action": {
-    "default_title": "voice-feishu context"
+    "default_title": "Voice Feishu 设置",
+    "default_popup": "popup.html"
   }
 }

@@ -11,6 +11,10 @@ from typing import Any
 from desktop.tools.audit import append_tool_record
 
 _WHITELIST_FIRST_THREE: set[tuple[str, str, str]] = {
+    ("lark-cli", "auth", "check"),
+    ("lark-cli", "auth", "login"),
+    ("lark-cli", "auth", "scopes"),
+    ("lark-cli", "auth", "status"),
     ("lark-cli", "contact", "+search-user"),
     ("lark-cli", "docs", "+fetch"),
     ("lark-cli", "minutes", "+search"),
