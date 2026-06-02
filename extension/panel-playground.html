@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Feishu Panel Playground</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172033;
+      background:
+        linear-gradient(180deg, rgba(247, 249, 252, 0.92), rgba(238, 242, 247, 0.98)),
+        repeating-linear-gradient(90deg, transparent 0 39px, rgba(15, 23, 42, 0.04) 39px 40px),
+        repeating-linear-gradient(0deg, transparent 0 39px, rgba(15, 23, 42, 0.04) 39px 40px);
+    }
+    header {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 32px 24px 18px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
+    }
+    .intro {
+      margin: 0;
+      max-width: 720px;
+      color: #5b6475;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .board {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 12px 24px 48px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .concept {
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .concept-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 32px;
+      font-size: 13px;
+      color: #5b6475;
+    }
+    .tag {
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #e8eef8;
+      color: #31415f;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .stage {
+      position: relative;
+      flex: 1;
+      min-height: 470px;
+      border: 1px solid rgba(82, 94, 120, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.72);
+      overflow: hidden;
+      box-shadow: 0 14px 36px rgba(30, 41, 59, 0.08);
+    }
+    .fake-doc {
+      padding: 28px;
+      color: #263245;
+    }
+    .fake-doc h2 {
+      margin: 0 0 18px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+    .line {
+      height: 10px;
+      margin: 12px 0;
+      border-radius: 99px;
+      background: #dfe6ef;
+    }
+    .line.short { width: 54%; }
+    .line.mid { width: 76%; }
+    .line.long { width: 92%; }
+    .vf-panel {
+      position: absolute;
+      right: 20px;
+      bottom: 20px;
+      border: 1px solid rgba(22, 32, 51, 0.12);
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+    .vf-panel.compact {
+      width: 324px;
+      border-radius: 8px;
+    }
+    .vf-panel.dock {
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      border-radius: 8px;
+    }
+    .vf-panel.bubble {
+      width: 288px;
+      border-radius: 24px 24px 8px 24px;
+    }
+    .vf-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(22, 32, 51, 0.08);
+    }
+    .drag {
+      width: 18px;
+      height: 32px;
+      border-radius: 9px;
+      color: #738096;
+      display: grid;
+      place-items: center;
+      cursor: grab;
+      user-select: none;
+    }
+    .mic {
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: 50%;
+      background: #4f46e5;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 8px 20px rgba(79, 70, 229, 0.32);
+      cursor: pointer;
+      flex: 0 0 40px;
+    }
+    .meta {
+      min-width: 0;
+      flex: 1;
+    }
+    .state {
+      font-size: 13px;
+      font-weight: 700;
+      color: #182235;
+    }
+    .sub {
+      margin-top: 2px;
+      color: #6b7280;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid rgba(22, 32, 51, 0.1);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #273244;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .icon-btn.active {
+      background: #e0f2fe;
+      border-color: #7dd3fc;
+      color: #075985;
+    }
+    .transcript {
+      padding: 12px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .msg {
+      max-width: 88%;
+      padding: 9px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #eef2ff;
+      color: #30306f;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: #f3f6fb;
+      color: #243044;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px 14px;
+    }
+    .wave {
+      flex: 1;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .bar {
+      width: 4px;
+      border-radius: 99px;
+      background: #4f46e5;
+    }
+    .bar:nth-child(1) { height: 12px; }
+    .bar:nth-child(2) { height: 20px; }
+    .bar:nth-child(3) { height: 28px; }
+    .bar:nth-child(4) { height: 16px; }
+    .bar:nth-child(5) { height: 24px; }
+    .bar:nth-child(6) { height: 14px; }
+    .bar:nth-child(7) { height: 22px; }
+    .pill {
+      border: 1px solid rgba(22, 32, 51, 0.1);
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #fff;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .dock-body {
+      display: grid;
+      grid-template-columns: 1.1fr 1.7fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+    }
+    .dock .vf-head {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+    .live-text {
+      min-height: 78px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #2f3b4f;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .side-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .bubble .vf-head {
+      border-bottom: 0;
+      padding-bottom: 8px;
+    }
+    .bubble .transcript {
+      padding-top: 0;
+    }
+    .bubble-note {
+      margin: 0 14px 14px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #ecfdf5;
+      color: #065f46;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+    @media (max-width: 960px) {
+      .board { grid-template-columns: 1fr; }
+      .concept { min-height: 500px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Voice Feishu 面板 Playground</h1>
+    <p class="intro">三种可拖拽语音面板方向：都保留小话筒入口，加入文字输出、听筒开关、暂停截断和调试状态。这里是静态设计稿，暂不接真实 API。</p>
+  </header>
+
+  <main class="board">
+    <section class="concept">
+      <div class="concept-title">
+        <strong>方案 A · Compact Transcript</strong>
+        <span class="tag">当前浮窗升级</span>
+      </div>
+      <div class="stage">
+        <div class="fake-doc">
+          <h2>飞书文档：周会纪要</h2>
+          <div class="line long"></div>
+          <div class="line mid"></div>
+          <div class="line long"></div>
+          <div class="line short"></div>
+        </div>
+        <article class="vf-panel compact">
+          <div class="vf-head">
+            <div class="drag">⋮⋮</div>
+            <button class="mic" aria-label="开始录音">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+            </button>
+            <div class="meta">
+              <div class="state">正在回复</div>
+              <div class="sub">已读取页面可见文本 · API fallback</div>
+            </div>
+            <button class="icon-btn active" title="听筒开启">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+            </button>
+          </div>
+          <div class="transcript">
+            <div class="msg user">帮我总结当前文档。</div>
+            <div class="msg assistant">这份文档主要在同步本周项目进展、待确认风险和下周行动项。</div>
+          </div>
+          <div class="controls">
+            <button class="icon-btn" title="暂停输出">
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
+            <div class="wave"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+            <button class="pill">复制文字</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="concept">
+      <div class="concept-title">
+        <strong>方案 B · Bottom Dock</strong>
+        <span class="tag">稳定办公台</span>
+      </div>
+      <div class="stage">
+        <div class="fake-doc">
+          <h2>飞书 Wiki：产品方案</h2>
+          <div class="line mid"></div>
+          <div class="line long"></div>
+          <div class="line long"></div>
+          <div class="line short"></div>
+        </div>
+        <article class="vf-panel dock">
+          <div class="vf-head">
+            <button class="mic" aria-label="开始录音">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+            </button>
+            <div class="meta">
+              <div class="state">聆听结束 · 生成中</div>
+              <div class="sub">拖拽手柄在左侧，底部停靠减少遮挡</div>
+            </div>
+            <div class="drag">⋮⋮</div>
+          </div>
+          <div class="dock-body">
+            <div class="live-text">用户：把这篇文章整理成三个行动项。</div>
+            <div class="live-text">助手：1. 明确本周 owner；2. 拆分风险清单；3. 在周五前更新验收标准。</div>
+            <div class="side-actions">
+              <button class="icon-btn active" title="听筒开启">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+              </button>
+              <button class="icon-btn" title="截断输出">
+                <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="concept">
+      <div class="concept-title">
+        <strong>方案 C · Speech Bubble</strong>
+        <span class="tag">轻量伴随</span>
+      </div>
+      <div class="stage">
+        <div class="fake-doc">
+          <h2>飞书消息：项目群</h2>
+          <div class="line long"></div>
+          <div class="line short"></div>
+          <div class="line mid"></div>
+          <div class="line long"></div>
+        </div>
+        <article class="vf-panel bubble">
+          <div class="vf-head">
+            <button class="mic" aria-label="开始录音">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/></svg>
+            </button>
+            <div class="meta">
+              <div class="state">待确认</div>
+              <div class="sub">发消息前先预览</div>
+            </div>
+            <button class="icon-btn" title="听筒关闭">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m19 9-4 4"/><path d="m15 9 4 4"/></svg>
+            </button>
+          </div>
+          <div class="transcript">
+            <div class="msg assistant">我会先预览，不会直接发送。收件人：Ada；内容：今天 17:00 前同步进展。</div>
+          </div>
+          <p class="bubble-note">这种形态最少遮挡，适合默认折叠；展开后显示最近一轮文字和确认按钮。</p>
+          <div class="controls">
+            <button class="pill">确认发送</button>
+            <button class="pill">取消</button>
+            <div class="drag">⋮⋮</div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
